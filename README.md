@@ -1,8 +1,11 @@
 # ai-lab — harness compartilhado
 
-Harness de prompt engineering da trilha `01-Projetos/engenharia-de-prompt/`. Um repo,
+Harness de prompt engineering (trilha `01-Projetos/engenharia-de-prompt/`). Um repo,
 vários apps: o **mecanismo** e o **método** moram aqui; o **contrato**, o **dataset** e
 as **invariantes** de cada app moram no diretório de trabalho do app.
+
+Método aplicável a qualquer app com superfície de LLM — o app que traz o **grader** é
+o que valida, não este repo.
 
 ## Estrutura
 
