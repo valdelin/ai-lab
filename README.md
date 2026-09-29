@@ -13,17 +13,34 @@ o que valida, não este repo.
 ~/Work/lab/
 ├── ai-lab/                      # ESTE repo — mecanismo + método, nunca duplicado
 │   ├── harness/run.py           #   runner: dataset x graders → relatório + exit code
-│   ├── method/grader.md         #   como escrever e testar uma pergunta de conferência
-│   └── adapters/               #   (vazio até o 2º app; cada app traz suas invariantes)
+│   └── method/grader.md         #   como escrever e testar uma pergunta de conferência
 │
 ├── cycling-coach/               # git worktree do coach, branch lab/*
 │   ├── src/insight/contract.py  #   schema + versão + hash do prompt (dados do app)
 │   ├── src/insight/prompt.md    #   o prompt como arquivo versionado
+│   ├── evals/graders.py         #   invariantes do domínio (TSB ≤ −20, foco do motor)
 │   └── evals/cases.jsonl        #   casos bons + contra-exemplo por grader
 │
 ├── amazon-inventory/            # diretório de trabalho isolado (transferência)
 └── yomi-hub/                    # projeto novo (transferência, Fase 1+)
 ```
+
+Nenhum `adapters/` aqui. O adapter **é** o `evals/graders.py` do app: o runner
+carrega esse arquivo por caminho e não importa nada do domínio dele. Um `adapters/`
+central seria a fronteira furada — o CI passaria a testar as invariantes de um app
+que ele não acompanha, e trocar `TSB <= -20` no coach não mudaria nada no gate.
+
+## Contrato do adapter
+
+O app expõe duas coisas em `evals/graders.py`, e o runner só precisa delas:
+
+| Símbolo | Tipo | O que é |
+|---|---|---|
+| `CONTEXTO` | classe ou callable | transforma o dicionário `contexto` do caso num objeto |
+| `GRADERS` | lista de `(nome, fn)` | `fn(saida, ctx) -> bool` |
+
+Nada mais. Se o runner precisar conhecer o domínio de um app para funcionar, o
+método voltou a ser cópia — que é o que o ADR-004 diz para não acontecer.
 
 ## Por que um harness só
 
@@ -44,7 +61,7 @@ O corte mínimo, então: **o que é do app, fica no app. O que é do método, fi
 | Camada | Onde | Pergunta que responde |
 |---|---|---|
 | Contrato | `src/<módulo>/contract.py` (app) | "isto está bem formado?" |
-| Invariantes | `adapters/<app>/graders.py` (app) | "isto está **verdade**?" |
+| Invariantes | `evals/graders.py` (app) | "isto está **verdade**?" |
 | Dataset | `evals/cases.jsonl` (app) | casos bons + contra-exemplo por grader |
 | Método | `method/grader.md` (**aqui**) | "esta pergunta mede o que diz medir?" |
 | Runner | `harness/run.py` (**aqui**) | "todos os graders concordam?" |
@@ -53,7 +70,7 @@ O corte mínimo, então: **o que é do app, fica no app. O que é do método, fi
 
 ```bash
 cd ~/Work/lab/ai-lab
-PYTHONPATH=~/Work/lab/cycling-coach/src python3 -m harness.run ~/Work/lab/cycling-coach cycling-coach
+./check.sh ~/Work/lab/cycling-coach      # 2º argumento saiu: o adapter é o arquivo do app
 ```
 
 Roda **offline, sem chave de API**: o harness avalia saída já capturada, nunca chama o
@@ -64,6 +81,12 @@ modelo. Para avaliar saída real, o app grava a resposta em `evals/captures/`.
 - `ok` — aprova o caso bom e rejeita o contra-exemplo.
 - `REGRESSÃO` — reprova um caso bom (prompt/regra mudou errado).
 - `NÃO DISCRIMINA` — aceita o próprio contra-exemplo (não mede o que diz medir).
+- `SEM CONTRA-EXEMPLO` — não há contra-exemplo desse grader no dataset: não foi
+  testado, e não testado não é `ok`.
+
+Todas as três últimas derrubam o gate (`exit 1`). Um relatório que mostra um grader
+sem prova e ainda imprime `OK` no fim é o pior resultado possível: verde sem
+verificação.
 
 ## Isolamento dos experimentos
 
